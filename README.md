@@ -637,3 +637,66 @@ func main() {
 
 ![Result](examples/example12/example12.png)
 
+
+## Example 13
+
+Setting `Isometric: true` renders a diamond-shaped isometric tile map instead of the rectangular grid. The line, border, background, margin and image-size configuration options all apply unchanged. `HitTest` converts an image pixel (for example a mouse click in a level editor) back into the row and column under the cursor, and `CellCenter` performs the reverse lookup. Points outside the map return an `out of bounds` error and shared edges or corners have a single deterministic owner.
+
+```go
+package main
+
+import (
+	"image/color"
+	"log"
+
+	"github.com/shomali11/gridder"
+)
+
+func main() {
+	imageConfig := gridder.ImageConfig{
+		Width:  750,
+		Height: 400,
+		Name:   "example13.png",
+	}
+	gridConfig := gridder.GridConfig{
+		Rows:              3,
+		Columns:           4,
+		MarginWidth:       25,
+		LineStrokeWidth:   2,
+		BorderStrokeWidth: 4,
+		LineColor:         color.Gray{},
+		BorderColor:       color.Black,
+		BackgroundColor:   color.NRGBA{R: 220, G: 220, B: 220, A: 255},
+		Isometric:         true,
+	}
+
+	grid, err := gridder.New(imageConfig, gridConfig)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	for row := 0; row < gridConfig.Rows; row++ {
+		for column := 0; column < gridConfig.Columns; column++ {
+			if (row+column)%2 == 0 {
+				if err = grid.PaintCell(row, column, color.NRGBA{R: 135, G: 211, B: 124, A: 255}); err != nil {
+					log.Fatal(err)
+				}
+			}
+		}
+	}
+
+	// map a mouse pixel to a cell
+	row, column, err := grid.HitTest(325, 75)
+	if err != nil {
+		log.Fatal(err)
+	}
+	log.Printf("clicked cell: (%d, %d)", row, column)
+
+	if err = grid.SavePNG(); err != nil {
+		log.Fatal(err)
+	}
+}
+```
+
+![Result](examples/example13/example13.png)
+

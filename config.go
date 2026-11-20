@@ -11,6 +11,10 @@ const (
 	defaultGridLineStrokeWidth   = 2.0
 	defaultGridBorderStrokeWidth = 4.0
 
+	// maxGridDimension caps the number of rows and columns so that
+	// rendering cannot be asked to paint an unbounded number of lines
+	maxGridDimension = 100000
+
 	defaultLineLength      = 10.0
 	defaultLineStrokeWidth = 1.0
 
@@ -73,6 +77,33 @@ type GridConfig struct {
 	LineColor         color.Color
 	BorderColor       color.Color
 	BackgroundColor   color.Color
+
+	// Isometric switches the rectangular grid for an isometric
+	// diamond grid. When false (the default) the original rectangular
+	// behaviour is preserved exactly.
+	Isometric bool
+	// OriginX and OriginY locate the origin of an isometric grid in the
+	// grid-local coordinate space (the image area inside the margin).
+	// The origin is the centre of cell (0, 0). When both are left at
+	// zero the diamond map is centred automatically inside the grid.
+	// Negative values are allowed and move the map up and left.
+	OriginX float64
+	OriginY float64
+}
+
+// IsIsometric reports whether an isometric diamond grid is requested
+func (g *GridConfig) IsIsometric() bool {
+	return g.Isometric
+}
+
+// GetOriginX gets the isometric origin X offset (grid-local pixels)
+func (g *GridConfig) GetOriginX() float64 {
+	return g.OriginX
+}
+
+// GetOriginY gets the isometric origin Y offset (grid-local pixels)
+func (g *GridConfig) GetOriginY() float64 {
+	return g.OriginY
 }
 
 // GetWidth gets grid width

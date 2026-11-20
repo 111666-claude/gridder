@@ -10,9 +10,11 @@ import (
 )
 
 var (
-	errNoRows      = errors.New("no rows provided")
-	errNoColumns   = errors.New("no columns provided")
-	errOutOfBounds = errors.New("out of bounds")
+	errNoRows       = errors.New("no rows provided")
+	errNoColumns    = errors.New("no columns provided")
+	errOutOfBounds  = errors.New("out of bounds")
+	errGridTooLarge = errors.New("grid dimensions exceed the maximum of 100000 rows and columns")
+	errZeroGridSize = errors.New("grid area has zero or negative width or height; enlarge the image or reduce the margin")
 )
 
 // New creates a new gridder and sets it up with its configuration
@@ -25,6 +27,16 @@ func New(imageConfig ImageConfig, gridConfig GridConfig) (*Gridder, error) {
 	columns := gridConfig.GetColumns()
 	if columns == 0 {
 		return nil, errNoColumns
+	}
+
+	if rows > maxGridDimension || columns > maxGridDimension {
+		return nil, errGridTooLarge
+	}
+
+	imageWidth := imageConfig.GetWidth()
+	imageHeight := imageConfig.GetHeight()
+	if gridConfig.GetWidth(imageWidth) <= 0 || gridConfig.GetHeight(imageHeight) <= 0 {
+		return nil, errZeroGridSize
 	}
 
 	gridder := Gridder{
@@ -64,10 +76,40 @@ func (g *Gridder) PaintCell(row int, column int, color color.Color) error {
 		return err
 	}
 
+	if g.gridConfig.IsIsometric() {
+		return g.paintIsometricCell(row, column, color)
+	}
+
 	cellWidth, cellHeight := g.getCellDimensions()
 	paintWidth := cellWidth - g.gridConfig.GetLineStrokeWidth()
 	paintHeight := cellHeight - g.gridConfig.GetLineStrokeWidth()
 	return g.DrawRectangle(row, column, RectangleConfig{Width: paintWidth, Height: paintHeight, Color: color})
+}
+
+// HitTest maps an image pixel coordinate to the row and column of the
+// cell containing it. The coordinates are image pixels (including the
+// margin); points outside the grid return errOutOfBounds. On shared
+// edges and corners the ownership is deterministic, so repeated queries
+// with the same pixel always return the same answer: on a rectangular
+// grid shared lines belong to the cell below or to the right, and on an
+// isometric grid each border point belongs to the cell whose north edge
+// or north corner it is.
+func (g *Gridder) HitTest(x, y float64) (row int, column int, err error) {
+	if g.gridConfig.IsIsometric() {
+		return g.hitTestIsometric(x, y)
+	}
+	return g.hitTestRectangle(x, y)
+}
+
+// CellCenter returns the image pixel coordinates of the centre of a cell
+func (g *Gridder) CellCenter(row, column int) (*gg.Point, error) {
+	if err := g.verifyInBounds(row, column); err != nil {
+		return nil, err
+	}
+
+	margin := float64(g.gridConfig.GetMarginWidth())
+	center := g.getCellCenter(row, column)
+	return &gg.Point{X: center.X + margin, Y: center.Y + margin}, nil
 }
 
 // DrawRectangle draws a rectangle in a cell
@@ -222,6 +264,11 @@ func (g *Gridder) paintBackground() {
 }
 
 func (g *Gridder) paintGrid() {
+	if g.gridConfig.IsIsometric() {
+		g.paintIsometricGrid()
+		return
+	}
+
 	canvasWidth, canvasHeight := g.getGridDimensions()
 	cellWidth, cellHeight := g.getCellDimensions()
 
@@ -254,6 +301,11 @@ func (g *Gridder) paintGrid() {
 }
 
 func (g *Gridder) paintBorder() {
+	if g.gridConfig.IsIsometric() {
+		g.paintIsometricBorder()
+		return
+	}
+
 	canvasWidth, canvasHeight := g.getGridDimensions()
 	cellWidth, cellHeight := g.getCellDimensions()
 
@@ -283,6 +335,10 @@ func (g *Gridder) paintBorder() {
 }
 
 func (g *Gridder) getCellDimensions() (float64, float64) {
+	if g.gridConfig.IsIsometric() {
+		return g.getIsometricCellDimensions()
+	}
+
 	gridWidth, gridHeight := g.getGridDimensions()
 	cellWidth := gridWidth / float64(g.gridConfig.GetColumns())
 	cellHeight := gridHeight / float64(g.gridConfig.GetRows())
@@ -299,6 +355,10 @@ func (g *Gridder) getGridDimensions() (float64, float64) {
 }
 
 func (g *Gridder) getCellCenter(row, column int) *gg.Point {
+	if g.gridConfig.IsIsometric() {
+		return g.getIsometricCellCenter(row, column)
+	}
+
 	columns := float64(g.gridConfig.GetColumns())
 	rows := float64(g.gridConfig.GetRows())
 
